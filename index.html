@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#DCE6E2" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="description" content="Popward — release balloons, let the pushers do the work, pop them on the spikes." />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cellipse cx='16' cy='13' rx='10' ry='11' fill='%23ED6664'/%3E%3Cpath d='M13 25h6l-3-2.6z' fill='%23C94C4B'/%3E%3Cellipse cx='12.5' cy='8.5' rx='2' ry='3.2' fill='%23fff' opacity='.6' transform='rotate(-30 12.5 8.5)'/%3E%3C/svg%3E"
+    />
+    <title>Popward</title>
+    <script type="module" crossorigin src="./assets/index-BWqCy2gk.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BQhxYhrv.css">
+  </head>
+  <body>
+    <div id="page">
+      <div id="app" class="app">
+        <header class="hud">
+          <div class="brand">
+            <span class="brand-name">Pop<span>ward</span></span>
+            <span class="brand-level">Lv <b id="hud-level">1</b> · <span id="hud-stage">Terraces</span></span>
+          </div>
+          <div class="hud-progress" aria-label="Stage progress">
+            <div class="bar">
+              <div id="hud-progress-fill" class="bar-fill"></div>
+              <span id="hud-progress-text" class="bar-text">0 / 60</span>
+            </div>
+          </div>
+          <div class="hud-money" id="hud-money" aria-live="off">
+            <span class="coin" aria-hidden="true"></span><span id="hud-money-text">$0</span>
+          </div>
+          <button id="btn-mute" class="icon-btn" type="button" aria-label="Mute sound"></button>
+          <button id="btn-settings" class="icon-btn" type="button" aria-label="Settings"></button>
+        </header>
+
+        <main class="arena" id="arena">
+          <canvas id="game-canvas" aria-label="Popward arena. Tap or hold to release balloons."></canvas>
+          <div id="chips" class="chips"></div>
+          <div id="hint" class="hint"><span id="hint-icon" class="hint-ico"></span>Tap or hold to release balloons</div>
+          <div id="chain" class="chain"></div>
+          <div id="toasts" class="toasts"></div>
+
+          <section id="stage-card" class="overlay" hidden>
+            <div class="card stage-card" role="dialog" aria-labelledby="sc-title">
+              <div class="sc-kicker">Stage complete</div>
+              <h2 id="sc-title">Level 1 clear!</h2>
+              <div class="sc-stats">
+                <div><span>Popped</span><b id="sc-earned">$0</b></div>
+                <div><span>Clear bonus</span><b id="sc-bonus" class="sc-bonus">+$0</b></div>
+              </div>
+              <div class="sc-next">
+                <canvas id="sc-preview" class="sc-preview"></canvas>
+                <div class="sc-next-info">
+                  <span class="sc-next-k">Up next</span>
+                  <b id="sc-next-name">Level 2</b>
+                  <span id="sc-next-blurb" class="sc-next-blurb"></span>
+                  <span id="sc-next-target" class="sc-next-target"></span>
+                  <span class="sc-keep">Money &amp; upgrades carry over</span>
+                </div>
+              </div>
+              <button id="btn-continue" class="btn-primary" type="button">Continue</button>
+            </div>
+          </section>
+
+          <section id="settings" class="overlay" hidden>
+            <div class="card settings-card" role="dialog" aria-labelledby="settings-title">
+              <h2 id="settings-title">Popward <small>settings</small></h2>
+              <div class="row">
+                <span>Sound</span>
+                <button id="set-sound" class="toggle" type="button" aria-pressed="true">On</button>
+              </div>
+              <div class="row">
+                <label for="set-volume">Volume</label>
+                <input id="set-volume" type="range" min="0" max="100" step="1" />
+              </div>
+              <div class="row">
+                <span>Reduced motion</span>
+                <div class="seg" role="group" aria-label="Reduced motion">
+                  <button type="button" data-motion="auto">Auto</button>
+                  <button type="button" data-motion="on">On</button>
+                  <button type="button" data-motion="off">Off</button>
+                </div>
+              </div>
+              <div class="row danger">
+                <button id="btn-reset" class="btn-ghost" type="button">Reset progress…</button>
+                <div id="reset-confirm" class="reset-confirm" hidden>
+                  <p>Erase money, upgrades and level? This can't be undone.</p>
+                  <div class="reset-actions">
+                    <button id="reset-no" class="btn-ghost" type="button">Cancel</button>
+                    <button id="reset-yes" class="btn-danger" type="button">Yes, reset</button>
+                  </div>
+                </div>
+              </div>
+              <p class="help">
+                Tap or hold the arena to release balloons. Pushers carry them up; spikes pop them for cash. The ring on
+                the Evolve button turns one red balloon teal (worth 3×) each time it fills.
+              </p>
+              <button id="btn-close-settings" class="btn-primary" type="button">Resume</button>
+            </div>
+          </section>
+          <pre id="debug-panel" class="debug-panel" hidden></pre>
+        </main>
+
+        <footer class="tray" id="tray"></footer>
+        <div id="coin-layer" class="coin-layer" aria-hidden="true"></div>
+      </div>
+
+      <aside class="desk-help" aria-hidden="true">
+        <h1>Pop<span>ward</span></h1>
+        <p>Click or hold on the arena to release balloons. Space bar works too.</p>
+        <p>Price chips on the pipe and pushers buy upgrades; the tray holds value and evolution.</p>
+        <p class="muted">Add <code>?debug=1</code> to the URL for colliders, FPS and timers.</p>
+      </aside>
+    </div>
+  </body>
+</html>
