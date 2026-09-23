@@ -46,7 +46,10 @@ export function wireFeedback(game: Game, sfx: Sfx, ui: UI, isReduced: () => bool
     fx.text(c.x, c.y - 24, reason === 'full' ? 'Arena full — upgrade pushers' : 'Recharging…', COLORS.inkSoft, 12, 1);
   });
 
-  game.bus.on('evolveStart', () => sfx.evolveStart());
+  game.bus.on('evolveStart', () => {
+    sfx.evolveStart();
+    ui.pulseEvolveMeter();
+  });
 
   game.bus.on('evolve', ({ balloon }) => {
     sfx.evolve();
@@ -79,8 +82,6 @@ export function wireFeedback(game: Game, sfx: Sfx, ui: UI, isReduced: () => bool
     } else if (id === 'lowerPusher' || id === 'upperPusher') {
       const p = game.pushers[id === 'lowerPusher' ? 0 : 1];
       p.flash = 1;
-    } else if (id === 'evolution') {
-      game.gaugePulse = 1;
     } else if (id === 'value') {
       for (const b of game.balloons) fx.sparkle(b.x, b.y, COLORS.gold, 1);
     }

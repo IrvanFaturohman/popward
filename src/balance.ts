@@ -86,22 +86,22 @@ export const SPAWN = {
    * starts to matter economically: with slow rams a maxed pipe fills the arena and spawns stall.
    */
   maxActive: 34,
-  baseCharges: 3,
-  /** +1 charge slot every 2 pipe levels. */
-  chargesPerLevel: 0.5,
-  maxCharges: 8,
-  /** Seconds to regain one charge at pipe level 0. */
-  baseRechargeSec: 1.5,
-  rechargeMul: 0.88,
-  minRechargeSec: 0.45,
-  /** Repeat interval while the finger is held down. */
+  /** One balloon per charge, no stockpile: every tap waits for the pipe to refill. */
+  baseCharges: 1,
+  chargesPerLevel: 0,
+  maxCharges: 1,
+  /** Seconds to refill the pipe at level 0. The pipe upgrade shortens this. */
+  baseRechargeSec: 2.5,
+  rechargeMul: 0.9,
+  minRechargeSec: 0.7,
+  /** Repeat interval while the finger is held down (a held pipe fires as soon as it refills). */
   holdIntervalSec: 0.2,
   /** Idle time before the pipe starts puffing balloons on its own. */
   idleDelaySec: 3,
   /** Auto-spawn interval while idle. Slower than tapping so input always feels worth it. */
-  baseAutoSec: 3.5,
-  autoMul: 0.94,
-  minAutoSec: 1.8,
+  baseAutoSec: 4,
+  autoMul: 0.95,
+  minAutoSec: 2.2,
   /** Minimum time between "no charge" / "full" feedback pulses while holding. */
   failFeedbackSec: 0.45,
 };
@@ -119,22 +119,23 @@ export const EVOLUTION = {
   minSec: 3.5,
   /** Duration of the red → teal colour tween. */
   tweenSec: 0.5,
-  /** Flight time of the spark that travels from the gauge to the chosen balloon. */
-  sparkSec: 0.32,
+  /** Charge-up time: a teal ring closes in on the chosen balloon before it turns. */
+  sparkSec: 0.35,
   /** Balloons younger than this are still in the pipe and can't be chosen. */
   minAgeSec: 0.8,
 };
 
 export const PUSHER = {
-  baseCycleSec: 3.0,
+  /** Slow, deliberate strokes at level 0; speed upgrades take it down toward minCycleSec. */
+  baseCycleSec: 4,
   cycleMul: 0.9,
-  minCycleSec: 1.25,
+  minCycleSec: 1.6,
   /**
    * Short base reach: the ram only just clears the pipe, so balloons pile up and need several pushes (and the
    * pile behind them) to reach the next shaft. Reach upgrades are what un-jam the route.
    */
-  baseTravel: 120,
-  travelPerLevel: 12,
+  baseTravel: 90,
+  travelPerLevel: 10,
   /** Small pull-back before each push (anticipation). */
   windupDist: 7,
   /**
@@ -157,10 +158,10 @@ export interface UpgradeDef {
 }
 
 export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
-  // First purchase lands ~25-35 s into active play (pops start ~8 s in, ~$0.8/s early).
-  pipe: { name: 'Pipe', baseCost: 15, growth: 1.5, maxLevel: 12 },
-  lowerPusher: { name: 'Low pusher', baseCost: 18, growth: 1.55, maxLevel: 10 },
-  upperPusher: { name: 'High pusher', baseCost: 22, growth: 1.55, maxLevel: 10 },
+  // Balloons jam before the rams, so the first pop takes ~20 s; cheap first levels keep a purchase inside the first minute.
+  pipe: { name: 'Pipe', baseCost: 12, growth: 1.5, maxLevel: 12 },
+  lowerPusher: { name: 'Low pusher', baseCost: 14, growth: 1.55, maxLevel: 10 },
+  upperPusher: { name: 'High pusher', baseCost: 17, growth: 1.55, maxLevel: 10 },
   // Doubles income at L1, so it is priced as the milestone purchase.
   value: { name: 'Balloon value', baseCost: 55, growth: 2.3, maxLevel: 12 },
   evolution: { name: 'Evolution', baseCost: 28, growth: 1.6, maxLevel: 10 },
@@ -170,10 +171,10 @@ export const UPGRADE_ORDER: UpgradeId[] = ['pipe', 'lowerPusher', 'upperPusher',
 
 export const STAGE = {
   /**
-   * Progress (dollars popped) needed on level 1. The brief suggested 40-60, but measured active play earns
-   * ~$1/s, so 60 cleared in about a minute; 150 lands around 3 minutes now that balloons jam before the rams.
+   * Progress (dollars popped) needed on level 1. The brief suggested 40-60; with one charge, slow rams and
+   * balloons jamming at each terrace, active play earns ~$0.5-1/s, so 130 lands around 3-4 minutes.
    */
-  baseTarget: 150,
+  baseTarget: 130,
   /** Target multiplier per level; roughly tracks how much faster upgrades make income. */
   targetGrowth: 2.2,
   /** Stage-clear bonus as a share of the target. Small on purpose: pops are the main income. */
@@ -193,6 +194,11 @@ export const RESCUE = {
   moveTolerance: 16,
   /** A balloon that wanders but stays in one route zone this long also counts as stuck. */
   zoneDwellSec: 15,
+  /**
+   * Only lone balloons get nudged. A pile waiting for the next push is the intended jam, so any balloon with a
+   * neighbour closer than this (× diameter) is left alone.
+   */
+  isolationDiameters: 1.25,
   /** Velocity added by a nudge (u/s). Visible but never enough to throw a balloon to the spikes. */
   impulse: 130,
   cooldownSec: 3,

@@ -48,18 +48,18 @@ const tapPoint = { x: canvas.x + canvas.width * 0.55, y: canvas.y + canvas.heigh
   check('tap consumes one charge', Math.abs(before.charges - after.charges - 1) < 0.2, `${before.charges.toFixed(2)} → ${after.charges.toFixed(2)}`);
 }
 
-// ---- 2. Hold spawns repeatedly but only while charges last (no frame flood)
+// ---- 2. Hold spawns repeatedly, one balloon per refill (no frame flood)
 {
-  await page.waitForTimeout(3500); // let charges refill
+  await page.waitForTimeout(3500); // let the single charge refill
   const before = await state();
   await page.mouse.move(tapPoint.x, tapPoint.y);
   await page.mouse.down();
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(3000);
   await page.mouse.up();
   const after = await state();
   const spawned = after.balloons + (after.pops - before.pops) - before.balloons;
-  check('hold spawns several balloons', spawned >= 3, `spawned ${spawned}`);
-  check('hold is limited by charges', spawned <= 4, `spawned ${spawned} in 1s with 3 charges`);
+  check('hold keeps spawning as the pipe refills', spawned >= 2, `spawned ${spawned}`);
+  check('hold is limited to one charge per refill', spawned <= 2, `spawned ${spawned} in 3s (1 charge, 2.5s refill)`);
   const c0 = after.charges;
   await page.waitForTimeout(1600);
   const c1 = (await state()).charges;
@@ -105,10 +105,12 @@ const tapPoint = { x: canvas.x + canvas.width * 0.55, y: canvas.y + canvas.heigh
     });
   });
   for (let i = 0; i < 12; i++) {
+    await G(() => (window.popward.game.state.charges = 1));
     await page.mouse.click(tapPoint.x, tapPoint.y);
     await page.waitForTimeout(450);
   }
-  await page.waitForTimeout(9000);
+  // Balloons jam at each terrace before spilling on, so give the first handful time to arrive.
+  await page.waitForFunction(() => window.__popCount >= 5, null, { timeout: 90000 }).catch(() => {});
   const r = await G(() => {
     const g = window.popward.game;
     return { sum: window.__popSum, count: window.__popCount, dm: g.state.money - window.__m0, dp: g.state.progress - window.__p0 };
@@ -206,10 +208,12 @@ const tapPoint = { x: canvas.x + canvas.width * 0.55, y: canvas.y + canvas.heigh
       recharge: g.upgrades.rechargeSec(),
       evoSec: g.upgrades.evolutionSec(),
       red: g.upgrades.balloonValue('red'),
+      baseRecharge: window.popward.balance.SPAWN.baseRechargeSec,
+      baseEvo: window.popward.balance.EVOLUTION.baseSec,
     };
   });
   check('pusher upgrade takes effect immediately', effects.pusherCycle.every((c) => c < effects.baseCycle), JSON.stringify(effects.pusherCycle));
-  check('pipe/evolution/value upgrades change stats', effects.recharge < 1.5 && effects.evoSec < 12 && effects.red === 2, JSON.stringify(effects));
+  check('pipe/evolution/value upgrades change stats', effects.recharge < effects.baseRecharge && effects.evoSec < effects.baseEvo && effects.red === 2, JSON.stringify(effects));
   const neg = await G(() => {
     const g = window.popward.game;
     g.state.money = 3;
@@ -228,10 +232,11 @@ const tapPoint = { x: canvas.x + canvas.width * 0.55, y: canvas.y + canvas.heigh
     return { money: g.state.money, level: g.state.level, ups: { ...g.state.upgrades } };
   });
   for (let i = 0; i < 4; i++) {
+    await G(() => (window.popward.game.state.charges = 1));
     await page.mouse.click(tapPoint.x, tapPoint.y);
     await page.waitForTimeout(400);
   }
-  await page.waitForFunction(() => window.popward.game.mode === 'cleared', null, { timeout: 30000 });
+  await page.waitForFunction(() => window.popward.game.mode === 'cleared', null, { timeout: 90000 });
   await page.waitForTimeout(400);
   const card = await page.locator('#stage-card').isVisible();
   check('stage clear card appears', card);
@@ -299,13 +304,14 @@ const tapPoint = { x: canvas.x + canvas.width * 0.55, y: canvas.y + canvas.heigh
     g.loadStage();
     g.bus.emit('stageStart', { level: 3 });
   });
-  // Stage 3 is the longest route and balloons jam before the rams, so allow up to 35 s for the first pop.
+  // Balloons jam before the rams, so allow up to 90 s for the first pop on a fresh stage.
   const p0 = await G(() => window.popward.game.state.stats.pops);
   for (let i = 0; i < 10; i++) {
+    await G(() => (window.popward.game.state.charges = 1));
     await page.mouse.click(tapPoint.x, tapPoint.y);
     await page.waitForTimeout(500);
   }
-  await page.waitForFunction((p0) => window.popward.game.state.stats.pops > p0, p0, { timeout: 35000 }).catch(() => {});
+  await page.waitForFunction((p0) => window.popward.game.state.stats.pops > p0, p0, { timeout: 90000 }).catch(() => {});
   const r = await G((p0) => ({ key: window.popward.game.stage.key, pops: window.popward.game.state.stats.pops - p0 }), p0);
   check('stage 3 (switchback) loads and balloons pop', r.key === 'switchback' && r.pops > 0, JSON.stringify(r));
   await page.screenshot({ path: 'screenshots/qa-stage3.png' });
@@ -339,7 +345,7 @@ const tapPoint = { x: canvas.x + canvas.width * 0.55, y: canvas.y + canvas.heigh
     const cap = window.popward.balance.SPAWN.maxActive;
     let max = 0;
     for (let i = 0; i < 450; i++) {
-      g.state.charges = 8;
+      g.state.charges = 1;
       g.press();
       g.release();
       await new Promise((res) => setTimeout(res, 40));

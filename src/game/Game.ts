@@ -77,7 +77,6 @@ export class Game {
   // Evolution
   spark: { balloon: Balloon; t: number } | null = null;
   evoWaiting = false;
-  gaugePulse = 0;
 
   // Pops
   chain = 0;
@@ -299,7 +298,6 @@ export class Game {
     for (const p of this.pushers) p.decayVisuals(dt);
     this.pipeSquash = Math.max(0, this.pipeSquash - dt * 4);
     this.chargeFlash = Math.max(0, this.chargeFlash - dt * 2.5);
-    this.gaugePulse = Math.max(0, this.gaugePulse - dt * 2);
 
     if (playing && this.economy.stageDone) this.completeStage();
     if (this.celebrateT >= 0 && this.celebrateT < STAGE.celebrateSec) this.celebrateT += dt;
@@ -396,7 +394,7 @@ export class Game {
     if (this.spark) {
       const s = this.spark;
       if (s.balloon.popped) {
-        // Target popped mid-flight: refund the full gauge so the evolution is never lost.
+        // Target popped while charging: refund the full meter so the evolution is never lost.
         this.spark = null;
         this.state.evo = 1;
       } else {
@@ -418,7 +416,6 @@ export class Game {
         candidate.targeted = true;
         this.spark = { balloon: candidate, t: 0 };
         this.state.evo = 0;
-        this.gaugePulse = 1;
         this.bus.emit('evolveStart', { balloon: candidate });
       } else {
         this.evoWaiting = true;
@@ -518,6 +515,7 @@ export class Game {
       const stuckFor = Math.max(wedged - RESCUE.stuckSec, dwelling - RESCUE.zoneDwellSec);
       if (stuckFor < 0 || b.rescues >= RESCUE.maxPerBalloon) continue;
       if (now - b.lastRescueAt < RESCUE.cooldownSec) continue;
+      if (!this.isIsolated(b)) continue;
       if (!worst || stuckFor > worstFor) {
         worst = b;
         worstFor = stuckFor;
@@ -535,6 +533,17 @@ export class Game {
     this.lastRescueAt = now;
     this.rescueCount += 1;
     this.bus.emit('rescue', { balloon: worst, dx: dir.x, dy: dir.y });
+  }
+
+  private isIsolated(b: Balloon): boolean {
+    const d = BALLOON.radius * 2 * RESCUE.isolationDiameters;
+    for (const o of this.balloons) {
+      if (o === b) continue;
+      const dx = o.x - b.x;
+      const dy = o.y - b.y;
+      if (dx * dx + dy * dy < d * d) return false;
+    }
+    return true;
   }
 
   private zoneIndex(x: number, y: number): number {

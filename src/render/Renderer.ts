@@ -1,6 +1,6 @@
 import { BALLOON, FX, PIPE, WORLD } from '../balance';
 import { buildSolids, pipeGeometry } from '../config/geometry';
-import type { PusherConfig, StageConfig, Vec } from '../config/stages';
+import { pusherWallX, type PusherConfig, type StageConfig, type Vec } from '../config/stages';
 import type { Balloon } from '../entities/Balloon';
 import type { Pusher, PusherPhase } from '../entities/Pusher';
 import type { Game } from '../game/Game';
@@ -125,7 +125,7 @@ export class Renderer {
     this.drawBalloons(ctx, game, time);
     drawPipeFront(ctx, stage, game.pipeSquash);
     drawCharges(ctx, stage, game.state.charges, maxCharges, game.chargeFlash, time);
-    this.drawGauge(ctx, game, time);
+    this.drawEvolveCharge(ctx, game, time);
     game.particles.draw(ctx, FONT);
     this.debug?.draw(ctx, game);
   }
@@ -242,71 +242,32 @@ export class Renderer {
     }
   }
 
-  // ------------------------------------------------------------------ gauge
+  // ------------------------------------------------------------------ evolution
 
-  private drawGauge(ctx: CanvasRenderingContext2D, game: Game, time: number): void {
-    const t = gaugeTrack(game.stage);
-    const fill = clamp(game.state.evo, 0, 1);
-    const fh = t.h * fill;
-    if (fh > 0.5) {
-      const grad = ctx.createLinearGradient(0, t.y + t.h, 0, t.y);
-      grad.addColorStop(0, COLORS.red);
-      grad.addColorStop(1, COLORS.teal);
-      ctx.save();
-      roundRectPath(ctx, t.x, t.y, t.w, t.h, t.w / 2);
-      ctx.clip();
-      ctx.fillStyle = grad;
-      ctx.fillRect(t.x, t.y + t.h - fh, t.w, fh);
-      // moving sheen so the gauge visibly "breathes" while filling
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      const sy = t.y + t.h - ((time * 18) % (t.h + 10));
-      if (sy > t.y + t.h - fh) ctx.fillRect(t.x, sy, t.w, 3);
-      ctx.restore();
-    }
-    const icon = gaugeIcons(game.stage);
-    if (game.evoWaiting) {
-      // Full but no red balloon to convert: pulse and wait.
-      const k = 0.5 + Math.sin(time * 6) * 0.5;
-      ctx.strokeStyle = COLORS.teal;
-      ctx.globalAlpha = 0.35 + k * 0.5;
-      ctx.lineWidth = 2;
-      roundRectPath(ctx, t.x - 2.5, t.y - 2.5, t.w + 5, t.h + 5, (t.w + 5) / 2);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
-    if (game.gaugePulse > 0) {
-      const k = 1 - game.gaugePulse;
-      ctx.strokeStyle = COLORS.teal;
-      ctx.globalAlpha = game.gaugePulse;
-      ctx.lineWidth = 2.5;
+  /** The chosen balloon charges up: a teal ring closes in on it, then it turns (see Game.updateEvolution). */
+  private drawEvolveCharge(ctx: CanvasRenderingContext2D, game: Game, time: number): void {
+    const spark = game.spark;
+    if (!spark) return;
+    const b = spark.balloon;
+    const x = lerp(b.prevX, b.x, game.alpha);
+    const y = lerp(b.prevY, b.y, game.alpha);
+    const k = clamp(spark.t, 0, 1);
+    const r = BALLOON.radius * (3.2 - 2 * k);
+    ctx.strokeStyle = COLORS.teal;
+    ctx.lineWidth = 2 + k * 1.5;
+    ctx.globalAlpha = 0.35 + 0.65 * k;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    // four little sparks riding the ring inward
+    ctx.fillStyle = COLORS.teal;
+    for (let i = 0; i < 4; i++) {
+      const a = time * 4 + (i * Math.PI) / 2;
       ctx.beginPath();
-      ctx.arc(icon.top.x, icon.top.y, 8 + k * 14, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
+      ctx.arc(x + Math.cos(a) * r, y + Math.sin(a) * r, 2.2, 0, Math.PI * 2);
+      ctx.fill();
     }
-    if (game.spark) {
-      const target = game.spark.balloon;
-      const p0 = { x: t.x + t.w / 2, y: t.y };
-      const p2 = { x: target.x, y: target.y };
-      const c = { x: (p0.x + p2.x) / 2 - 30, y: Math.min(p0.y, p2.y) - 60 };
-      for (let i = 3; i >= 0; i--) {
-        const k = clamp(game.spark.t - i * 0.07, 0, 1);
-        const px = (1 - k) * (1 - k) * p0.x + 2 * (1 - k) * k * c.x + k * k * p2.x;
-        const py = (1 - k) * (1 - k) * p0.y + 2 * (1 - k) * k * c.y + k * k * p2.y;
-        ctx.globalAlpha = i === 0 ? 1 : 0.5 - i * 0.12;
-        ctx.fillStyle = COLORS.teal;
-        ctx.beginPath();
-        ctx.arc(px, py, i === 0 ? 5 : 4 - i * 0.7, 0, Math.PI * 2);
-        ctx.fill();
-        if (i === 0) {
-          ctx.fillStyle = '#FFFFFF';
-          ctx.beginPath();
-          ctx.arc(px, py, 2.2, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-      ctx.globalAlpha = 1;
-    }
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -326,16 +287,6 @@ function star(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): v
 export function pipLayout(max: number) {
   const spacing = max > 5 ? 10 : 12;
   return { spacing, r: max > 5 ? 3.8 : 4.3, well: max > 5 ? 4.9 : 5.6 };
-}
-
-export function gaugeTrack(stage: StageConfig) {
-  const g = stage.gauge;
-  return { x: g.x + g.w - 22, y: g.y + 4, w: 13, h: g.h - 8 };
-}
-
-function gaugeIcons(stage: StageConfig) {
-  const g = stage.gauge;
-  return { top: { x: g.x + 13, y: g.y + 14 }, bottom: { x: g.x + 13, y: g.y + g.h - 16 } };
 }
 
 export function drawBackground(ctx: CanvasRenderingContext2D, stage: StageConfig): void {
@@ -504,12 +455,12 @@ export function drawWalls(ctx: CanvasRenderingContext2D, stage: StageConfig, pxP
   }
 }
 
-/** Static machine details that live on the walls: ram sockets, LED housings, spikes, gauge well, pip wells. */
+/** Static machine details that live on the walls: ram sockets, LED housings, spikes, pip wells. */
 export function drawWallDetails(ctx: CanvasRenderingContext2D, stage: StageConfig, maxCharges: number): void {
   const B = WORLD.border;
   const pal = stage.palette;
   for (const cfg of stage.pushers) {
-    const wallX = cfg.side === 'left' ? B : WORLD.width - B;
+    const wallX = pusherWallX(cfg);
     const d = cfg.side === 'left' ? 1 : -1;
     // socket the ram slides out of
     ctx.fillStyle = '#6E8287';
@@ -552,34 +503,6 @@ export function drawWallDetails(ctx: CanvasRenderingContext2D, stage: StageConfi
     ctx.fill();
   }
 
-  // evolution gauge well
-  const g = stage.gauge;
-  ctx.fillStyle = 'rgba(39,54,58,0.07)';
-  roundRectPath(ctx, g.x, g.y, g.w, g.h, 10);
-  ctx.fill();
-  const t = gaugeTrack(stage);
-  ctx.fillStyle = 'rgba(39,54,58,0.16)';
-  roundRectPath(ctx, t.x, t.y, t.w, t.h, t.w / 2);
-  ctx.fill();
-  const icons = gaugeIcons(stage);
-  miniBalloon(ctx, icons.top.x, icons.top.y, 6.5, COLORS.teal);
-  miniBalloon(ctx, icons.bottom.x, icons.bottom.y, 6.5, COLORS.red);
-  // up arrow between the two icons: red becomes teal
-  ctx.strokeStyle = 'rgba(39,54,58,0.35)';
-  ctx.lineWidth = 2;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  const ax = icons.top.x;
-  const ay0 = icons.bottom.y - 12;
-  const ay1 = icons.top.y + 13;
-  ctx.beginPath();
-  ctx.moveTo(ax, ay0);
-  ctx.lineTo(ax, ay1);
-  ctx.moveTo(ax - 4, ay1 + 4);
-  ctx.lineTo(ax, ay1);
-  ctx.lineTo(ax + 4, ay1 + 4);
-  ctx.stroke();
-
   // charge pip wells
   const c = stage.charges;
   const pip = pipLayout(maxCharges);
@@ -601,9 +524,8 @@ export function drawRam(
   jolt: number,
   time: number,
 ): void {
-  const B = WORLD.border;
   const d = cfg.side === 'left' ? 1 : -1;
-  const wallX = cfg.side === 'left' ? B : WORLD.width - B;
+  const wallX = pusherWallX(cfg);
   const face = wallX + d * ext + (jolt > 0 ? Math.sin(time * 90) * jolt * 1.2 : 0);
   const top = cfg.y - 2;
   const h = cfg.height + 2;

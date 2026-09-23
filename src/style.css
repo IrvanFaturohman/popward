@@ -547,6 +547,39 @@ input:focus-visible {
   animation: tray-denied 0.3s ease-out;
 }
 
+/* Evolution meter: a ring around the Evolve icon fills with --p (0..1). */
+.tb-ico.evo-meter::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: conic-gradient(var(--teal) calc(var(--p, 0) * 360deg), rgba(39, 54, 58, 0.13) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
+  pointer-events: none;
+}
+
+.tb-ico.evo-meter.waiting::before {
+  animation: evo-wait 0.9s ease-in-out infinite;
+}
+
+.tb-ico.evo-meter.fired {
+  animation: evo-fired 0.45s ease-out;
+}
+
+@keyframes evo-wait {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes evo-fired {
+  40% {
+    transform: scale(1.18);
+    box-shadow: 0 0 0 6px rgba(86, 199, 208, 0.35);
+  }
+}
+
 /* ------------------------------------------------------------------ Overlays */
 
 .overlay {

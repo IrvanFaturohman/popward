@@ -1,6 +1,6 @@
 import type Matter from 'matter-js';
-import { PUSHER, WORLD } from '../balance';
-import type { PusherConfig } from '../config/stages';
+import { PUSHER } from '../balance';
+import { pusherWallX, type PusherConfig } from '../config/stages';
 import { moveBody } from '../physics/PhysicsWorld';
 import { easeInOutQuad, easeInOutSine, easeInSine, easeOutCubic, lerp } from '../util/math';
 
@@ -45,7 +45,7 @@ export class Pusher {
     this.body = body;
     this.length = length;
     this.dir = cfg.side === 'left' ? 1 : -1;
-    this.wallX = cfg.side === 'left' ? WORLD.border : WORLD.width - WORLD.border;
+    this.wallX = pusherWallX(cfg);
     this.u = cfg.phase;
     this.cycleSec = cycleSec;
     this.travel = travel;

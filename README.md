@@ -37,28 +37,30 @@ Parameter URL yang berguna:
 
 ## Cara main
 
-- **Tap** di area kosong arena untuk mengeluarkan satu balon (tidak perlu tepat di pipa). **Tahan** untuk mengeluarkan berulang (interval 0,2 detik) selama charge masih ada. Spasi juga bisa di desktop.
-- Charge (titik balon kecil di samping pipa) mulai dari 3 dan pulih bertahap. Tap saat kosong memberi getaran pip + bunyi pendek, bukan popup.
-- Setelah 3 detik tanpa input, pipa mengeluarkan balon sendiri tiap ~3,5 detik (tetap patuh batas balon aktif).
+- **Tap** di area kosong arena untuk mengeluarkan satu balon (tidak perlu tepat di pipa). **Tahan** untuk mengeluarkan balon berikutnya otomatis setiap kali pipa selesai mengisi ulang. Spasi juga bisa di desktop.
+- Pipa hanya punya **1 charge** (titik balon kecil di samping pipa, dengan cincin yang terisi saat pipa mengisi ulang, 2,5 detik di awal). Tap saat pipa belum siap memberi getaran pip + bunyi pendek, bukan popup. Upgrade Pipe mempercepat pengisian ulang.
+- Setelah 3 detik tanpa input, pipa mengeluarkan balon sendiri tiap ~4 detik (tetap patuh batas balon aktif).
 - Pusher bawah dan atas bergerak otomatis (istirahat → tarik sedikit → dorong → tahan → mundur). Lampu kecil di atas tiap pusher menunjukkan fasenya.
 - Balon yang menyentuh duri pecah: uang dan progress stage bertambah sesuai nilainya. Uang **hanya** diberikan saat pecah.
 - Chip harga di dekat pipa dan tiap pusher membeli upgrade alat itu. Tray bawah berisi **Value** dan **Evolve**.
 
-### Bar evolusi (interpretasi mekanik)
+### Evolusi (interpretasi mekanik)
 
-- Bar vertikal di kiri bawah arena terisi berdasarkan **waktu simulasi aktif** (12 detik di awal, makin cepat dengan upgrade Evolve). Bar berhenti saat game di-pause, tab tersembunyi, atau kartu stage terbuka.
-- Saat penuh, game memilih **balon merah aktif yang paling lama berada di arena** (minimal 0,8 detik, sudah keluar dari pipa). Percikan toska terbang dari bar ke balon itu, lalu warnanya berubah merah → toska dengan cincin, kilau, dan label nilai. Identitas dan fisika balon tetap sama. Bar kembali ke nol saat percikan dilepas.
-- Jika tidak ada balon merah, bar menunggu dalam keadaan penuh (berdenyut) dan langsung bekerja begitu ada balon merah.
-- Jika balon target keburu pecah sebelum percikan tiba, bar dikembalikan penuh supaya evolusi tidak hilang.
+- Meter evolusi berupa **cincin di sekeliling ikon tombol Evolve** di tray (bar di kiri bawah arena sudah dihapus). Cincin terisi berdasarkan **waktu simulasi aktif** (12 detik di awal, makin cepat dengan upgrade Evolve) dan berhenti saat game di-pause, tab tersembunyi, atau kartu stage terbuka.
+- Saat penuh, game memilih **balon merah aktif yang paling lama berada di arena** (minimal 0,8 detik, sudah keluar dari pipa). Cincin toska menyempit ke balon itu, lalu warnanya berubah merah → toska dengan kilau dan label nilai. Identitas dan fisika balon tetap sama. Meter kembali ke nol saat balon dipilih.
+- Jika tidak ada balon merah, meter menunggu dalam keadaan penuh (berdenyut) dan langsung bekerja begitu ada balon merah.
+- Jika balon target keburu pecah sebelum berubah warna, meter dikembalikan penuh supaya evolusi tidak hilang.
 - Balon toska bernilai 3× merah di semua level upgrade (merah `1×(1+L)`, toska `3×(1+L)`). Balon toska juga punya tanda kilau putih agar terbaca tanpa bergantung pada warna.
 
 ### Stage
 
 | Level | Layout | Ciri |
 | --- | --- | --- |
-| 1 | Terraces | Pipa kiri-tengah, pusher bawah dari kiri, shaft kanan, pusher atas dari kanan, duri tengah-kiri |
-| 2 | Crossover | Pipa kanan, pusher bertukar sisi, bibir teras miring, lantai bawah berbentuk V, duri tengah-kanan |
-| 3 | Switchback | Tiga tingkat; tingkat tengah memakai ramp miring pasif, kedua pusher dari kiri, duri kanan atas |
+| 1 | Terraces | Pipa kiri, pusher bawah dari kiri, shaft lebar di kanan, pusher atas dari kanan, shaft duri di kiri atas |
+| 2 | Crossover | Pipa kanan, pusher bertukar sisi, teras bawah lebih tinggi, shaft duri di kanan atas |
+| 3 | Switchback | Pilar penuh di kiri dengan pusher atas terpasang di dalamnya, ruang lebih sempit, shaft duri tinggi di kanan |
+
+Semua dinding **lurus** (persegi panjang, tanpa kemiringan). Aturannya: setiap langit-langit disapu ram atau ditutupi duri, dan duri selalu menutupi seluruh lebar shaft terakhir, jadi tidak ada sudut tempat balon parkir selamanya.
 
 Level 4+ mengulang ketiga layout dengan target yang terus naik. Saat target tercapai: bonus kecil, konfeti, SFX, lalu kartu dengan pratinjau layout berikutnya dan tombol **Continue**. Uang dan upgrade terbawa; balon stage lama dibersihkan.
 
@@ -82,18 +84,18 @@ Geometri stage ada di **`src/config/stages.ts`**: dinding berupa poligon convex,
 
 ### Hasil tuning (terukur, bukan tebakan)
 
-- Angka awal dari brief (3 charge, pulih 1,5 detik, merah $1, target 40–60) membuat stage 1 selesai dalam ~70 detik saat dimainkan aktif. Karena target waktu 2–4 menit lebih penting, **target stage 1 dinaikkan ke $150** (tumbuh 2,2× per level) dan harga upgrade pertama diatur ke $15.
-- Bot pacing (`npm run pacing`, tap terus-menerus ~3×/detik, membeli yang termurah dan menabung untuk Value): pembelian pertama di **~31 detik**, stage 1 selesai **~2,4 menit**, stage 2 ~2,3 menit, stage 3 ~2,8 menit, dengan pembelian tiap 15–20 detik. Pemain manusia biasanya sedikit lebih lambat dari bot, jadi perkiraannya ~3 menit per stage.
+- Brief awal menyarankan 3 charge, pulih 1,5 detik, dan target 40–60. Sesuai masukan playtest, pipa sekarang **1 charge, pulih 2,5 detik**, pusher lebih pelan dan pendek, dan balon sengaja macet dulu, supaya permainan lebih lama. **Target stage 1 = $130** (tumbuh 2,2× per level), harga upgrade pertama $12–17.
+- Bot pacing (`npm run pacing`, tap terus-menerus, membeli yang termurah dan menabung untuk Value): pembelian pertama di **~43 detik**, lalu tiap 20–35 detik; stage 1 selesai **~3,8 menit**, stage 2 ~3,5 menit. Pemain manusia biasanya sedikit lebih lambat dari bot.
 - Balon sengaja **tertahan dulu** di bawah teras. Jangkauan ram awal hanya sedikit melewati pipa, jadi tumpukan butuh beberapa dorongan untuk tumpah ke shaft berikutnya. Upgrade pusher benar-benar melancarkan aliran (`node scripts/throughput.mjs`, stage 1):
 
   | Pipa | Pusher | Pops/detik | Balon rata-rata di arena |
   | --- | --- | --- | --- |
-  | Lv4 | Lv0 | 0,92 | 14 |
-  | Lv4 | Lv6 | 1,04 | 7 |
-  | Lv10 | Lv0 | 1,56 (arena penuh) | 30 |
-  | Lv10 | Lv6 | 2,01 | 18 |
+  | Lv4 | Lv0 | 0,38 | 9,5 |
+  | Lv4 | Lv6 | 0,50 | 4 |
+  | Lv12 | Lv0 | 0,95 | 16 |
+  | Lv12 | Lv6 | 1,11 | 9 |
 
-- Waktu sampai pop pertama dengan pusher level 0 (`node scripts/firstpop.mjs`): stage 1 ~12 detik, stage 2 ~13 detik, stage 3 ~18 detik.
+- Waktu sampai pop pertama dengan pusher level 0 (`node scripts/firstpop.mjs`): stage 1 ~23 detik, stage 2 ~26 detik, stage 3 ~19 detik. Dengan pusher level 3: 11–19 detik.
 
 ## Catatan fisika
 
@@ -106,8 +108,8 @@ Geometri stage ada di **`src/config/stages.ts`**: dinding berupa poligon convex,
 - **Pusher kinematik:** ram adalah body statis Matter yang dipindahkan tiap substep dengan `Body.setPosition(body, pos, updateVelocity = true)`. Dengan begitu solver menganggapnya bermassa tak hingga dengan kecepatan nyata: overlap diselesaikan dengan menggeser balon saja, dan kecepatan ram diteruskan lewat kontak. Collider mencakup seluruh blok ram (bukan hanya pelat depan), jadi tidak ada celah di belakang ram. Travel tiap stage dibatasi agar muka ram selalu berjarak >3 lebar balon dari dinding seberang (tidak ada crush). Perubahan travel dari upgrade baru diterapkan saat ram istirahat supaya ram tidak pernah teleport.
 - **Friksi geser 0** di semua permukaan. Friksi Matter mengurangi kecepatan geser dalam jumlah tetap per iterasi solver, tidak bergantung beban. Akibatnya friksi sekecil 0,005 pun mengelas tumpukan balon menjadi gumpalan kaku yang tidak bisa merayap di kemiringan (terukur: stage 3 turun ke 0,27 pops/detik dengan 34 rescue, dibanding 0,82 pops/detik tanpa rescue saat friksi 0).
 - **Gesekan karet khusus putaran (`gripSpin`)**: balon yang tergesek dinding, ram, atau balon lain ikut menggelinding. Yang diubah hanya kecepatan sudutnya, bukan kecepatan geser, jadi tumpukan tetap bisa bergerak. Inilah yang membuat balon terguling dan kadang terbalik di dalam tumpukan.
-- **Dorongan lembut dan pendek:** ram melambat halus di ujung langkah (`punch` 0,05), jangkauan awal 120 (+12 per level), siklus 3 detik. Bagian bawah teras datar di sepanjang jangkauan awal ram, lalu sedikit miring ke arah bukaan, jadi balon tunggal di luar jangkauan tetap merayap keluar pelan-pelan (tidak ada titik mati permanen).
-- **Rescue:** balon yang hampir tidak bergerak selama 5 detik, atau tertahan di satu zona jalur selama 15 detik, diberi satu dorongan kecil yang terlihat (dengan asap) searah jalur. Ada cooldown per balon, batas 6 per balon, dan cooldown global. Balon tidak pernah dipecahkan atau dipindahkan ke duri.
+- **Dorongan lembut, pelan, dan pendek:** ram melambat halus di ujung langkah (`punch` 0,05), jangkauan awal 90 (+10 per level, dibatasi per stage), siklus 4 detik (turun ke 1,6 detik lewat upgrade). Karena dinding lurus, balon di luar jangkauan ram hanya maju saat tumpukan di belakangnya didorong (dorong berantai); upgrade jangkauan mengurangi jarak berantai itu.
+- **Rescue:** hanya untuk balon yang **sendirian** (tumpukan yang menunggu dorongan memang disengaja). Balon sendirian yang hampir tidak bergerak selama 5 detik, atau tertahan di satu zona jalur selama 15 detik, diberi satu dorongan kecil yang terlihat (dengan asap) searah jalur. Ada cooldown per balon, batas 6 per balon, dan cooldown global. Balon tidak pernah dipecahkan atau dipindahkan ke duri.
 - **Recovery:** balon yang keluar dunia atau pusatnya berada di dalam dinding lebih dari 1 detik dikembalikan ke pipa, tanpa reward. Frame pengaman tak terlihat di luar arena mencegah balon hilang. Selama pengujian stress, jumlah recovery = 0.
 - Batas **34 balon aktif**. Dengan pipa maksimal dan ram lambat, arena penuh dan spawn tertahan ("Arena full — upgrade pushers").
 
@@ -119,7 +121,7 @@ Skrip QA memakai Playwright dengan Google Chrome yang sudah terpasang (`channel:
 | --- | --- |
 | `npm run qa` | 51 pemeriksaan end-to-end: tap/tahan/charge/pemulihan, tap UI tidak spawn, idle spawn, pop dibayar tepat sekali dan progress = nilai, evolusi memilih merah tertua, bar reset, bar menunggu tanpa merah, toska membayar lebih, kelima upgrade (harga tepat, level/harga naik, efek langsung, tidak bisa minus), stage clear → kartu → Continue → layout 2, uang/upgrade terbawa, reload memulihkan save, mute tersimpan, save rusak → mulai bersih, stage 3 berjalan, pause saat tab tersembunyi tanpa loncatan waktu, batas balon aktif, settings pause + reset dengan konfirmasi, resize, tanpa error console |
 | `npm run pacing` | Bot pacing (lihat hasil di atas) |
-| `npm run stress` | Pipa dan pusher maksimal dengan CPU throttling 4×: stabil 60 fps (p95 16,7 ms) dengan 27–34 balon, tanpa NaN, tanpa balon keluar arena |
+| `npm run stress` | Pipa dan pusher maksimal dengan CPU throttling 4×: ~60 fps (p95 16,8 ms) dengan 20–25 balon, tanpa NaN, tanpa balon keluar arena |
 | `node scripts/throughput.mjs` | Pops/detik terhadap level pusher |
 | `node scripts/firstpop.mjs` | Waktu sampai pop pertama per stage |
 | `node scripts/zoom.mjs` | Close-up arena plus statistik kemiringan balon (berapa yang miring >45° / terbalik >120°) |
@@ -151,7 +153,7 @@ src/
   debug/DebugOverlay.ts   overlay ?debug=1
 ```
 
-State (uang, progress, level, upgrade, charge, bar evolusi) hanya ditulis oleh Game/Economy/UpgradeSystem. UI, audio, dan FX membaca state atau mendengarkan event bus. Save ditulis tiap ~3 detik saat ada perubahan, serta langsung pada pembelian, stage clear, Continue, reset, tab tersembunyi, dan `pagehide`. Settings (mute/volume/reduced motion) disimpan terpisah, jadi Reset Progress tidak mengubahnya.
+State (uang, progress, level, upgrade, charge, meter evolusi) hanya ditulis oleh Game/Economy/UpgradeSystem. UI, audio, dan FX membaca state atau mendengarkan event bus. Save ditulis tiap ~3 detik saat ada perubahan, serta langsung pada pembelian, stage clear, Continue, reset, tab tersembunyi, dan `pagehide`. Settings (mute/volume/reduced motion) disimpan terpisah, jadi Reset Progress tidak mengubahnya.
 
 ## Aksesibilitas & feel
 

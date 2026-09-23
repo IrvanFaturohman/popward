@@ -47,6 +47,7 @@ export class UI {
   private coinsInFlight = 0;
   private chainTimer = 0;
   private stageCardShownFor = -1;
+  private evoIco: HTMLElement | null = null;
 
   constructor(
     private readonly game: Game,
@@ -104,6 +105,9 @@ export class UI {
       this.trayEl.appendChild(btn);
       this.trayBtns.set(id, btn);
     }
+    // The evolution meter lives on the Evolve button: a ring around its icon fills as the timer runs.
+    this.evoIco = this.trayBtns.get('evolution')!.querySelector('.tb-ico');
+    this.evoIco?.classList.add('evo-meter');
   }
 
   private bindHud(): void {
@@ -269,6 +273,15 @@ export class UI {
     const pct = Math.min(100, (s.progress / target) * 100);
     this.setStyle('progW', this.progFill, 'width', `${pct.toFixed(1)}%`);
 
+    if (this.evoIco) {
+      const p = g.state.evo.toFixed(3);
+      if (this.cache.get('evo') !== p) {
+        this.cache.set('evo', p);
+        this.evoIco.style.setProperty('--p', p);
+      }
+      this.evoIco.classList.toggle('waiting', g.evoWaiting);
+    }
+
     for (const [id, btn] of this.chips) this.renderUpgrade(id, btn, true);
     for (const [id, btn] of this.trayBtns) this.renderUpgrade(id, btn, false);
 
@@ -353,6 +366,14 @@ export class UI {
     el.classList.remove('bought');
     void el.offsetWidth;
     el.classList.add('bought');
+  }
+
+  pulseEvolveMeter(): void {
+    const el = this.evoIco;
+    if (!el) return;
+    el.classList.remove('fired');
+    void el.offsetWidth;
+    el.classList.add('fired');
   }
 
   hideHint(): void {
