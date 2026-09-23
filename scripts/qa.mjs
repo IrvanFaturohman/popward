@@ -120,18 +120,26 @@ const tapPoint = { x: canvas.x + canvas.width * 0.55, y: canvas.y + canvas.heigh
 
 // ---- 6. Evolution: oldest red turns teal, bar resets, teal pays more
 {
+  // Judge the choice at the moment the game makes it (a pre-computed "oldest" may pop while we wait).
   const r = await G(async () => {
     const g = window.popward.game;
     g.press();
     g.release();
     await new Promise((res) => setTimeout(res, 1200));
-    const reds = g.balloons.filter((b) => b.tier === 'red' && !b.targeted && g.simTime - b.bornAt > 0.8);
-    const oldest = reds.reduce((a, b) => (a && a.bornAt <= b.bornAt ? a : b), null);
+    const pick = new Promise((res) => {
+      const off = g.bus.on('evolveStart', ({ balloon }) => {
+        off();
+        const eligible = g.balloons.filter((b) => b.tier === 'red' && b !== balloon && !b.targeted && g.simTime - b.bornAt >= 0.8);
+        res({ id: balloon.id, oldest: eligible.every((b) => b.bornAt >= balloon.bornAt) });
+      });
+    });
     g.state.evo = 0.999;
+    const chosen = await pick;
     await new Promise((res) => setTimeout(res, 700));
-    return { oldestId: oldest?.id, oldestTier: oldest?.tier, evo: g.state.evo, blueIds: g.balloons.filter((b) => b.tier === 'blue').map((b) => b.id) };
+    const b = g.balloons.find((x) => x.id === chosen.id);
+    return { ...chosen, tier: b ? b.tier : 'popped', evo: g.state.evo };
   });
-  check('evolution converts the oldest red balloon', r.oldestTier === 'blue' || r.blueIds.includes(r.oldestId), `oldest #${r.oldestId} now ${r.oldestTier}`);
+  check('evolution converts the oldest red balloon', r.oldest && (r.tier === 'blue' || r.tier === 'popped'), JSON.stringify(r));
   check('evolution bar resets after converting', r.evo < 0.2, `evo ${r.evo.toFixed(2)}`);
   const values = await G(() => {
     const u = window.popward.game.upgrades;
@@ -164,8 +172,12 @@ const tapPoint = { x: canvas.x + canvas.width * 0.55, y: canvas.y + canvas.heigh
     return w;
   });
   check('bar waits full when no red balloon exists', waiting.waiting === true && waiting.evo === 1, JSON.stringify(waiting));
-  await page.waitForTimeout(3500); // an idle spawn arrives
-  const resumed = await G(() => window.popward.game.state.evo);
+  // Wait (up to 10 s) for an idle spawn to become old enough to evolve.
+  const resumed = await G(async () => {
+    const g = window.popward.game;
+    for (let i = 0; i < 100 && g.state.evo >= 1; i++) await new Promise((res) => setTimeout(res, 100));
+    return g.state.evo;
+  });
   check('waiting bar fires once a red balloon appears', resumed < 1, `evo ${resumed.toFixed(2)}`);
 }
 
