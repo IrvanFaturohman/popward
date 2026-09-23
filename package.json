@@ -1,0 +1,26 @@
+{
+  "name": "popward",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "qa": "node scripts/qa.mjs",
+    "pacing": "node scripts/pacing.mjs 300 5 0.3 1",
+    "stress": "node scripts/stress.mjs 4 20 1",
+    "deploy": "bash scripts/deploy.sh"
+  },
+  "dependencies": {
+    "@fontsource/nunito": "^5.3.0",
+    "matter-js": "^0.20.0"
+  },
+  "devDependencies": {
+    "@types/matter-js": "^0.20.2",
+    "playwright": "^1.63.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0"
+  }
+}

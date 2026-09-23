@@ -1,0 +1,213 @@
+/**
+ * Popward balance sheet — every gameplay number lives here.
+ *
+ * Units: world units (the arena is 360 × 620, a balloon is 30 across), seconds, dollars.
+ * Tuning notes explain the trade-off of a value, not what the code does with it.
+ */
+
+export const WORLD = {
+  width: 360,
+  height: 620,
+  /** Thickness of the outer frame walls inside the world rect. */
+  border: 14,
+} as const;
+
+export const SIM = {
+  stepHz: 60,
+  /** Two 8.3 ms solver passes per tick: stops the rams tunnelling into piles without paying for 120 Hz rendering. */
+  substeps: 2,
+  /** After a long hitch we drop simulated time instead of spiralling into catch-up. */
+  maxCatchUpSteps: 5,
+  positionIterations: 10,
+  velocityIterations: 8,
+  /** Frames longer than this are clamped (tab switches, debugger pauses). */
+  maxFrameSec: 0.1,
+};
+
+export const BALLOON = {
+  radius: 15,
+  /** Upward acceleration (u/s²). Higher feels snappier but piles press harder into ceilings and pushers. */
+  buoyancy: 270,
+  /** Matter frictionAir per 1/60 s. Together with buoyancy this sets terminal rise ≈ 140 u/s and how far a pushed balloon coasts. */
+  airFriction: 0.035,
+  /**
+   * Balloons are slippery: 0 on every surface. Matter warm-starts friction across solver iterations,
+   * so even 0.02 behaves like glue at low sliding speeds and balloons stall on ceiling ramps.
+   */
+  friction: 0,
+  frictionStatic: 0,
+  restitution: 0.22,
+  density: 0.001,
+  /** Hard velocity clamp (u/s). Guards against solver spikes inside dense piles. */
+  maxSpeed: 460,
+  /** Gentle horizontal wander (u/s²) so a lone balloon never rises perfectly straight. */
+  driftAccel: 22,
+  /** Launch speed out of the pipe (u/s). */
+  spawnSpeed: 170,
+  /** Scale-in time when a balloon appears (visual only). */
+  spawnScaleSec: 0.16,
+  /** Polygon sides for the circle collider; fewer = cheaper collisions on mid-range Android. */
+  colliderSides: 16,
+};
+
+export const PIPE = {
+  innerWidth: 36,
+  wall: 8,
+  rimOverhang: 5,
+  rimHeight: 11,
+  /** How deep the spawn channel goes below the mouth. */
+  channelDepth: 38,
+};
+
+export const SPAWN = {
+  /**
+   * Hard cap on live balloons. Keeps mid-range Android at 60 fps, and it is where pusher speed
+   * starts to matter economically: with slow rams a maxed pipe fills the arena and spawns stall.
+   */
+  maxActive: 34,
+  baseCharges: 3,
+  /** +1 charge slot every 2 pipe levels. */
+  chargesPerLevel: 0.5,
+  maxCharges: 8,
+  /** Seconds to regain one charge at pipe level 0. */
+  baseRechargeSec: 1.5,
+  rechargeMul: 0.88,
+  minRechargeSec: 0.45,
+  /** Repeat interval while the finger is held down. */
+  holdIntervalSec: 0.2,
+  /** Idle time before the pipe starts puffing balloons on its own. */
+  idleDelaySec: 3,
+  /** Auto-spawn interval while idle. Slower than tapping so input always feels worth it. */
+  baseAutoSec: 3.5,
+  autoMul: 0.94,
+  minAutoSec: 1.8,
+  /** Minimum time between "no charge" / "full" feedback pulses while holding. */
+  failFeedbackSec: 0.45,
+};
+
+export const VALUE = {
+  red: 1,
+  blue: 3,
+  // The value upgrade adds one base unit per level: red = 1×(1+L), teal = 3×(1+L).
+  // Integer payouts stay honest on screen and teal is always exactly 3× red.
+};
+
+export const EVOLUTION = {
+  baseSec: 12,
+  mul: 0.87,
+  minSec: 3.5,
+  /** Duration of the red → teal colour tween. */
+  tweenSec: 0.5,
+  /** Flight time of the spark that travels from the gauge to the chosen balloon. */
+  sparkSec: 0.32,
+  /** Balloons younger than this are still in the pipe and can't be chosen. */
+  minAgeSec: 0.8,
+};
+
+export const PUSHER = {
+  baseCycleSec: 2.9,
+  cycleMul: 0.9,
+  minCycleSec: 1.25,
+  baseTravel: 150,
+  travelPerLevel: 10,
+  /** Small pull-back before each push (anticipation). */
+  windupDist: 7,
+  /**
+   * Stroke shape: 0 = eases to a stop (gentle nudge), 1 = hits the end stop at full speed (launch).
+   * ~0.5 shoves a pile as a group so its front spills into the next shaft while the rest queues.
+   */
+  punch: 0.35,
+  /** Share of one cycle spent in each phase (sums to 1). Longer rest = more balloons gather before a push. */
+  phases: { rest: 0.28, windup: 0.07, extend: 0.27, hold: 0.1, retract: 0.28 },
+};
+
+export type UpgradeId = 'pipe' | 'lowerPusher' | 'upperPusher' | 'value' | 'evolution';
+
+export interface UpgradeDef {
+  name: string;
+  baseCost: number;
+  /** Cost multiplier per level. ~1.5 feels generous; above 2 makes each level a milestone. */
+  growth: number;
+  maxLevel: number;
+}
+
+export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
+  // First purchase lands ~25-35 s into active play (pops start ~8 s in, ~$0.8/s early).
+  pipe: { name: 'Pipe', baseCost: 15, growth: 1.5, maxLevel: 12 },
+  lowerPusher: { name: 'Low pusher', baseCost: 18, growth: 1.55, maxLevel: 10 },
+  upperPusher: { name: 'High pusher', baseCost: 22, growth: 1.55, maxLevel: 10 },
+  // Doubles income at L1, so it is priced as the milestone purchase.
+  value: { name: 'Balloon value', baseCost: 55, growth: 2.3, maxLevel: 12 },
+  evolution: { name: 'Evolution', baseCost: 28, growth: 1.6, maxLevel: 10 },
+};
+
+export const UPGRADE_ORDER: UpgradeId[] = ['pipe', 'lowerPusher', 'upperPusher', 'value', 'evolution'];
+
+export const STAGE = {
+  /**
+   * Progress (dollars popped) needed on level 1. The brief suggested 40-60, but measured active
+   * play earns ~$1/s, which cleared a 60 target in ~70 s; 120 lands in the 2-4 minute window.
+   */
+  baseTarget: 120,
+  /** Target multiplier per level; roughly tracks how much faster upgrades make income. */
+  targetGrowth: 2.2,
+  /** Stage-clear bonus as a share of the target. Small on purpose: pops are the main income. */
+  bonusFrac: 0.25,
+  /** Pause between reaching the target and the Continue card (celebration beat). */
+  celebrateSec: 1.4,
+};
+
+export const START = {
+  money: 0,
+};
+
+export const RESCUE = {
+  checkSec: 0.25,
+  /** A balloon that moves less than moveTolerance for stuckSec gets one gentle nudge along the route. */
+  stuckSec: 5,
+  moveTolerance: 16,
+  /** A balloon that wanders but stays in one route zone this long also counts as stuck. */
+  zoneDwellSec: 15,
+  /** Velocity added by a nudge (u/s). Visible but never enough to throw a balloon to the spikes. */
+  impulse: 130,
+  cooldownSec: 3,
+  maxPerBalloon: 6,
+  globalCooldownSec: 0.6,
+};
+
+export const RECOVERY = {
+  checkSec: 0.5,
+  /** Out-of-bounds margin around the world rect before a balloon is considered lost. */
+  margin: 24,
+  /** Time a centre may stay inside solid geometry before the balloon is returned to the pipe. */
+  insideWallSec: 1,
+};
+
+export const FX = {
+  maxParticles: 260,
+  popShards: 7,
+  /** Multiplier on particle counts when reduced motion is active. */
+  reducedParticles: 0.4,
+  /** Pops within this window count toward the same chain (cosmetic only — no hidden multiplier). */
+  chainWindowSec: 0.7,
+  clusterShakePops: 3,
+  shakeAmp: 2.2,
+  maxCoinsInFlight: 8,
+};
+
+export const AUDIO = {
+  defaultVolume: 0.65,
+  /** At most this many pop voices per window — bursts stay crisp instead of turning to mush. */
+  maxPopsPerWindow: 4,
+  popWindowSec: 0.1,
+  bumpCooldownSec: 0.12,
+  /** Normal impact speed (u/s) below which balloon-on-balloon contact stays silent. */
+  bumpThreshold: 170,
+};
+
+export const SAVE = {
+  key: 'popward.save',
+  settingsKey: 'popward.settings',
+  version: 1,
+  throttleSec: 3,
+};
