@@ -4,6 +4,14 @@ import 'matter-js';
 declare module 'matter-js' {
   interface Body {
     positionPrev: Vector;
+    anglePrev: number;
     deltaTime: number;
+  }
+  interface Collision {
+    supports: Vector[];
+    supportCount: number;
+    tangent: Vector;
+    parentA: Body;
+    parentB: Body;
   }
 }

@@ -16,7 +16,16 @@ import { pipeGeometry } from '../config/geometry';
 import { stageForLevel, type StageConfig } from '../config/stages';
 import { Balloon } from '../entities/Balloon';
 import { Pusher } from '../entities/Pusher';
-import { applyAccel, getVelocity, moveBody, PhysicsWorld, setVelocity } from '../physics/PhysicsWorld';
+import {
+  applyAccelAt,
+  applyRollingGrip,
+  clampSpin,
+  getVelocity,
+  moveBody,
+  PhysicsWorld,
+  resetAngle,
+  setVelocity,
+} from '../physics/PhysicsWorld';
 import { Particles } from '../render/Particles';
 import { EventBus } from '../util/EventBus';
 import { circleHitsRect } from '../util/math';
@@ -93,6 +102,14 @@ export class Game {
     this.economy = new Economy(state, this.bus);
     this.upgrades = new UpgradeSystem(state, this.economy, this.bus);
     this.physics.onCollisionStart = (pairs) => this.onCollisions(pairs);
+    this.physics.onContacts = (pairs) => {
+      for (const pair of pairs) {
+        if (!pair.isActive) continue;
+        const a = this.balloonByBody.has(pair.collision.parentA.id);
+        const b = this.balloonByBody.has(pair.collision.parentB.id);
+        if (a || b) applyRollingGrip(pair, BALLOON.gripSpin, a, b);
+      }
+    };
     this.bus.on('moneyChanged', () => (this.dirty = true));
     this.loadStage();
     this.state.charges = this.upgrades.maxCharges();
@@ -241,6 +258,7 @@ export class Game {
     for (const b of this.balloons) {
       b.prevX = b.x;
       b.prevY = b.y;
+      b.prevAngle = b.angle;
     }
     for (const p of this.pushers) p.beginTick();
 
@@ -248,15 +266,19 @@ export class Game {
     for (let s = 0; s < SIM.substeps; s++) {
       for (const p of this.pushers) p.step(SUB);
       const t = this.simTime + s * SUB;
+      const r = BALLOON.radius;
       for (const b of this.balloons) {
         const drift = Math.sin(t * 0.9 + b.seed * 40) * 0.7 + Math.sin(t * 2.3 + b.seed * 13) * 0.3;
-        applyAccel(b.body, BALLOON.driftAccel * drift, -BALLOON.buoyancy);
+        // Lift above the centre rights the balloon; drift at the knot makes it sway.
+        applyAccelAt(b.body, 0, -BALLOON.liftOffset * r, 0, -BALLOON.buoyancy);
+        applyAccelAt(b.body, 0, r * 0.9, BALLOON.driftAccel * drift, 0);
       }
       this.physics.step();
       for (const b of this.balloons) {
         const v = getVelocity(b.body);
         const speed = Math.hypot(v.x, v.y);
         if (speed > maxStep) setVelocity(b.body, (v.x / speed) * maxStep, (v.y / speed) * maxStep);
+        clampSpin(b.body, BALLOON.maxSpin);
       }
     }
 
@@ -565,9 +587,11 @@ export class Game {
   private teleportBalloon(b: Balloon, x: number, y: number): void {
     const body = b.body;
     moveBody(body, x, y, false);
+    resetAngle(body);
     setVelocity(body, 0, -BALLOON.spawnSpeed * 0.5);
     b.prevX = x;
     b.prevY = y;
+    b.prevAngle = 0;
     b.insideWallFor = 0;
     b.spawnT = 0;
     b.anchorAt = this.simTime;

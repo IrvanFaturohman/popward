@@ -299,12 +299,14 @@ const tapPoint = { x: canvas.x + canvas.width * 0.55, y: canvas.y + canvas.heigh
     g.loadStage();
     g.bus.emit('stageStart', { level: 3 });
   });
+  // Stage 3 is the longest route and balloons jam before the rams, so allow up to 35 s for the first pop.
+  const p0 = await G(() => window.popward.game.state.stats.pops);
   for (let i = 0; i < 10; i++) {
     await page.mouse.click(tapPoint.x, tapPoint.y);
     await page.waitForTimeout(500);
   }
-  await page.waitForTimeout(12000);
-  const r = await G(() => ({ key: window.popward.game.stage.key, pops: window.popward.game.state.stats.pops }));
+  await page.waitForFunction((p0) => window.popward.game.state.stats.pops > p0, p0, { timeout: 35000 }).catch(() => {});
+  const r = await G((p0) => ({ key: window.popward.game.stage.key, pops: window.popward.game.state.stats.pops - p0 }), p0);
   check('stage 3 (switchback) loads and balloons pop', r.key === 'switchback' && r.pops > 0, JSON.stringify(r));
   await page.screenshot({ path: 'screenshots/qa-stage3.png' });
 }

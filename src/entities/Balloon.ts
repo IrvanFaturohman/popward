@@ -13,9 +13,10 @@ export class Balloon {
   tier: Tier = 'red';
   popped = false;
 
-  /** Previous-tick position for render interpolation. */
+  /** Previous-tick pose for render interpolation. */
   prevX: number;
   prevY: number;
+  prevAngle = 0;
 
   /** 0..1 scale-in after spawning. */
   spawnT = 0;
@@ -53,6 +54,10 @@ export class Balloon {
 
   get y(): number {
     return this.body.position.y;
+  }
+
+  get angle(): number {
+    return this.body.angle;
   }
 
   age(simTime: number): number {

@@ -82,19 +82,34 @@ Geometri stage ada di **`src/config/stages.ts`**: dinding berupa poligon convex,
 
 ### Hasil tuning (terukur, bukan tebakan)
 
-- Angka awal dari brief (3 charge, pulih 1,5 detik, merah $1, target 40–60) membuat stage 1 selesai dalam ~70 detik saat dimainkan aktif. Karena target waktu 2–4 menit lebih penting, **target stage 1 dinaikkan ke $120** (tumbuh 2,2× per level) dan harga upgrade pertama diatur ke $15.
-- Bot pacing (`npm run pacing`, tap terus-menerus ~3×/detik, membeli yang termurah dan menabung untuk Value): pembelian pertama di **~26 detik**, stage 1 selesai **~122 detik**, stage 2 dan 3 masing-masing ~2–2,5 menit, dengan pembelian tiap 15–20 detik. Pemain manusia biasanya sedikit lebih lambat dari bot, jadi perkiraannya pembelian pertama ~30–40 detik dan stage 1 ~2,5–3 menit.
+- Angka awal dari brief (3 charge, pulih 1,5 detik, merah $1, target 40–60) membuat stage 1 selesai dalam ~70 detik saat dimainkan aktif. Karena target waktu 2–4 menit lebih penting, **target stage 1 dinaikkan ke $150** (tumbuh 2,2× per level) dan harga upgrade pertama diatur ke $15.
+- Bot pacing (`npm run pacing`, tap terus-menerus ~3×/detik, membeli yang termurah dan menabung untuk Value): pembelian pertama di **~31 detik**, stage 1 selesai **~2,4 menit**, stage 2 ~2,3 menit, stage 3 ~2,8 menit, dengan pembelian tiap 15–20 detik. Pemain manusia biasanya sedikit lebih lambat dari bot, jadi perkiraannya ~3 menit per stage.
+- Balon sengaja **tertahan dulu** di bawah teras. Jangkauan ram awal hanya sedikit melewati pipa, jadi tumpukan butuh beberapa dorongan untuk tumpah ke shaft berikutnya. Upgrade pusher benar-benar melancarkan aliran (`node scripts/throughput.mjs`, stage 1):
+
+  | Pipa | Pusher | Pops/detik | Balon rata-rata di arena |
+  | --- | --- | --- | --- |
+  | Lv4 | Lv0 | 0,92 | 14 |
+  | Lv4 | Lv6 | 1,04 | 7 |
+  | Lv10 | Lv0 | 1,56 (arena penuh) | 30 |
+  | Lv10 | Lv6 | 2,01 | 18 |
+
+- Waktu sampai pop pertama dengan pusher level 0 (`node scripts/firstpop.mjs`): stage 1 ~12 detik, stage 2 ~13 detik, stage 3 ~18 detik.
 
 ## Catatan fisika
 
 - **Fixed timestep 60 Hz** dengan accumulator, maksimal 5 langkah catch-up per frame. Tiap langkah dibagi menjadi **2 substep** (8,3 ms) agar ram yang cepat tidak menembus tumpukan balon. Render memakai `requestAnimationFrame` dengan interpolasi posisi. Saat tab tersembunyi, simulasi berhenti dan clock di-reset saat kembali (tidak ada loncatan).
-- Gravitasi Matter dimatikan. Tiap balon diberi gaya apung dan drift horizontal sendiri. Collider balon berupa lingkaran (16 sisi, tanpa rotasi). Oval, ikat, tali, goyangan, dan squash hanya visual.
+- Gravitasi Matter dimatikan. Tiap balon diberi gaya apung dan drift horizontal sendiri.
+- **Balon berputar dan bisa terbalik.** Collider berupa oval sedikit tinggi (16 sisi) dengan inersia nyata, jadi kontak di luar sumbu utama menghasilkan torsi.
+  - Gaya apung bekerja sedikit di atas pusat (`liftOffset`), jadi balon yang miring pelan-pelan tegak lagi seperti balon asli yang simpulnya menggantung di bawah. Drift bekerja di simpul, sehingga balon juga sedikit berayun.
+  - Tali selalu menjuntai ke bawah dari simpul, ke mana pun balon menghadap. Highlight tetap dari arah kiri atas.
+- **Hambatan udara tinggi** (`airFriction` 0,06, dengan daya apung dinaikkan agar kecepatan naik tetap sama): balon yang didorong cepat berhenti dan tidak terlempar jauh.
 - **Pusher kinematik:** ram adalah body statis Matter yang dipindahkan tiap substep dengan `Body.setPosition(body, pos, updateVelocity = true)`. Dengan begitu solver menganggapnya bermassa tak hingga dengan kecepatan nyata: overlap diselesaikan dengan menggeser balon saja, dan kecepatan ram diteruskan lewat kontak. Collider mencakup seluruh blok ram (bukan hanya pelat depan), jadi tidak ada celah di belakang ram. Travel tiap stage dibatasi agar muka ram selalu berjarak >3 lebar balon dari dinding seberang (tidak ada crush). Perubahan travel dari upgrade baru diterapkan saat ram istirahat supaya ram tidak pernah teleport.
-- **Friksi 0** di semua permukaan. Matter melakukan warm-start friksi di setiap iterasi solver, sehingga friksi kecil pun (0,02) berperilaku seperti lem pada kecepatan geser rendah dan balon berhenti di langit-langit miring. Hal ini ditemukan saat pengujian, lalu diperbaiki.
-- Bagian bawah teras yang tidak terjangkau ram dibuat sedikit miring ke arah bukaan, supaya tidak ada titik mati permanen.
+- **Friksi geser 0** di semua permukaan. Friksi Matter mengurangi kecepatan geser dalam jumlah tetap per iterasi solver, tidak bergantung beban. Akibatnya friksi sekecil 0,005 pun mengelas tumpukan balon menjadi gumpalan kaku yang tidak bisa merayap di kemiringan (terukur: stage 3 turun ke 0,27 pops/detik dengan 34 rescue, dibanding 0,82 pops/detik tanpa rescue saat friksi 0).
+- **Gesekan karet khusus putaran (`gripSpin`)**: balon yang tergesek dinding, ram, atau balon lain ikut menggelinding. Yang diubah hanya kecepatan sudutnya, bukan kecepatan geser, jadi tumpukan tetap bisa bergerak. Inilah yang membuat balon terguling dan kadang terbalik di dalam tumpukan.
+- **Dorongan lembut dan pendek:** ram melambat halus di ujung langkah (`punch` 0,05), jangkauan awal 120 (+12 per level), siklus 3 detik. Bagian bawah teras datar di sepanjang jangkauan awal ram, lalu sedikit miring ke arah bukaan, jadi balon tunggal di luar jangkauan tetap merayap keluar pelan-pelan (tidak ada titik mati permanen).
 - **Rescue:** balon yang hampir tidak bergerak selama 5 detik, atau tertahan di satu zona jalur selama 15 detik, diberi satu dorongan kecil yang terlihat (dengan asap) searah jalur. Ada cooldown per balon, batas 6 per balon, dan cooldown global. Balon tidak pernah dipecahkan atau dipindahkan ke duri.
 - **Recovery:** balon yang keluar dunia atau pusatnya berada di dalam dinding lebih dari 1 detik dikembalikan ke pipa, tanpa reward. Frame pengaman tak terlihat di luar arena mencegah balon hilang. Selama pengujian stress, jumlah recovery = 0.
-- Batas **34 balon aktif**. Batas ini juga membuat kecepatan pusher berdampak ekonomi di akhir game: dengan pipa maksimal dan ram lambat, arena penuh dan spawn tertahan ("Arena full — upgrade pushers").
+- Batas **34 balon aktif**. Dengan pipa maksimal dan ram lambat, arena penuh dan spawn tertahan ("Arena full — upgrade pushers").
 
 ## Pengujian yang dijalankan
 
@@ -104,8 +119,10 @@ Skrip QA memakai Playwright dengan Google Chrome yang sudah terpasang (`channel:
 | --- | --- |
 | `npm run qa` | 51 pemeriksaan end-to-end: tap/tahan/charge/pemulihan, tap UI tidak spawn, idle spawn, pop dibayar tepat sekali dan progress = nilai, evolusi memilih merah tertua, bar reset, bar menunggu tanpa merah, toska membayar lebih, kelima upgrade (harga tepat, level/harga naik, efek langsung, tidak bisa minus), stage clear → kartu → Continue → layout 2, uang/upgrade terbawa, reload memulihkan save, mute tersimpan, save rusak → mulai bersih, stage 3 berjalan, pause saat tab tersembunyi tanpa loncatan waktu, batas balon aktif, settings pause + reset dengan konfirmasi, resize, tanpa error console |
 | `npm run pacing` | Bot pacing (lihat hasil di atas) |
-| `npm run stress` | Pipa dan pusher maksimal dengan CPU throttling 4×: stabil 60 fps (p95 16,8 ms) dengan 24–32 balon, tanpa NaN, tanpa balon keluar arena |
+| `npm run stress` | Pipa dan pusher maksimal dengan CPU throttling 4×: stabil 60 fps (p95 16,7 ms) dengan 27–34 balon, tanpa NaN, tanpa balon keluar arena |
 | `node scripts/throughput.mjs` | Pops/detik terhadap level pusher |
+| `node scripts/firstpop.mjs` | Waktu sampai pop pertama per stage |
+| `node scripts/zoom.mjs` | Close-up arena plus statistik kemiringan balon (berapa yang miring >45° / terbalik >120°) |
 | `node scripts/shot.mjs <url> <out.png> <w> <h>` | Screenshot cepat |
 
 Viewport yang sudah dicek lewat screenshot: 360×780, 390×844, 430×932 (mobile, DPR 2) dan desktop 1280×800 (bingkai portrait + petunjuk kontrol).
@@ -146,6 +163,5 @@ State (uang, progress, level, upgrade, charge, bar evolusi) hanya ditulis oleh G
 ## TODO / ide berikutnya
 
 - Mekanik baru yang sengaja belum dibuat: kipas, gergaji, magnet, balon spesial.
-- Tuning pusher lebih lanjut: saat ini pusher terutama mengurangi waktu tunggu dan kepadatan; efek ekonominya baru terasa saat arena mendekati batas balon.
 - Uji di perangkat Android fisik (target performa sejauh ini diverifikasi dengan throttling CPU di Chrome desktop).
 - Offline earnings / statistik per sesi, dan ikon PWA + manifest.

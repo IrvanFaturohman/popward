@@ -136,6 +136,8 @@ export class Renderer {
     const a = game.alpha;
     const list = game.balloons;
     const r = BALLOON.radius;
+    const rx = r * BALLOON.shapeX * 1.02;
+    const ry = r * BALLOON.shapeY;
     // Shadows and strings first so neighbouring balloons never get a string drawn over their body.
     ctx.fillStyle = COLORS.shadow;
     for (const b of list) {
@@ -143,32 +145,38 @@ export class Renderer {
       const y = lerp(b.prevY, b.y, a);
       const s = easeOutBack(b.spawnT);
       ctx.beginPath();
-      ctx.ellipse(x + 3, y + 5, r * 0.95 * s, r * 1.05 * s, 0, 0, Math.PI * 2);
+      ctx.ellipse(x + 3, y + 5, rx * s, ry * s, lerp(b.prevAngle, b.angle, a), 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.strokeStyle = 'rgba(39,54,58,0.28)';
+    ctx.strokeStyle = 'rgba(39,54,58,0.3)';
     ctx.lineWidth = 1.1;
     for (const b of list) {
       if (b.spawnT < 0.6) continue;
       const x = lerp(b.prevX, b.x, a);
       const y = lerp(b.prevY, b.y, a);
-      const sway = Math.sin(time * 3 + b.seed * 20) * 3 - (b.x - b.prevX) * 2;
+      const ang = lerp(b.prevAngle, b.angle, a);
+      // The string leaves the knot along the balloon's axis, then gravity bends it downward.
+      const dx = -Math.sin(ang);
+      const dy = Math.cos(ang);
+      const kx = x + dx * ry * 1.1;
+      const ky = y + dy * ry * 1.1;
+      const sway = Math.sin(time * 3 + b.seed * 20) * 3 - (b.x - b.prevX) * 3;
       ctx.beginPath();
-      ctx.moveTo(x, y + r * 1.12);
-      ctx.quadraticCurveTo(x + sway, y + r * 1.5, x - sway * 0.5, y + r * 1.95);
+      ctx.moveTo(kx, ky);
+      ctx.bezierCurveTo(kx + dx * 8, ky + dy * 8, kx + sway, ky + 12, kx - sway * 0.5, ky + 17);
       ctx.stroke();
     }
-    for (const b of list) this.drawBalloon(ctx, b, lerp(b.prevX, b.x, a), lerp(b.prevY, b.y, a), time);
+    for (const b of list) this.drawBalloon(ctx, b, lerp(b.prevX, b.x, a), lerp(b.prevY, b.y, a), lerp(b.prevAngle, b.angle, a), time);
   }
 
-  private drawBalloon(ctx: CanvasRenderingContext2D, b: Balloon, x: number, y: number, time: number): void {
+  private drawBalloon(ctx: CanvasRenderingContext2D, b: Balloon, x: number, y: number, angle: number, time: number): void {
     const r = BALLOON.radius;
+    const rx = r * BALLOON.shapeX * 1.02;
+    const ry = r * BALLOON.shapeY;
     const blend = b.tier === 'blue' ? easeInOutSine(b.evolveT) : 0;
     const color = blend <= 0 ? COLORS.red : blend >= 1 ? COLORS.teal : mixHex(COLORS.red, COLORS.teal, blend);
     const dark = blend <= 0 ? COLORS.redDark : blend >= 1 ? COLORS.tealDark : mixHex(COLORS.redDark, COLORS.tealDark, blend);
-    const vx = (b.x - b.prevX) * 60;
-    const wobble = this.reducedMotion ? 0 : Math.sin(time * 2.2 + b.seed * 30) * 0.05;
-    const tilt = clamp(-vx * 0.0014, -0.22, 0.22) + wobble;
+    const wobble = this.reducedMotion ? 0 : Math.sin(time * 2.2 + b.seed * 30) * 0.03;
     let scale = easeOutBack(b.spawnT);
     // Evolution "gulp": a quick swell while the colour turns.
     if (b.tier === 'blue' && b.evolveT < 1) scale *= 1 + Math.sin(b.evolveT * Math.PI) * 0.16;
@@ -181,34 +189,35 @@ export class Renderer {
       ctx.scale(1 - sq, 1 + sq * 0.6);
       ctx.rotate(-b.squashAngle);
     }
-    ctx.rotate(tilt);
+    // Physics owns the orientation now: balloons tilt, tumble and can hang upside down.
+    ctx.rotate(angle + wobble);
     ctx.scale(scale, scale);
 
     // knot
     ctx.fillStyle = dark;
     ctx.beginPath();
-    ctx.moveTo(-3.2, r * 1.16);
-    ctx.lineTo(3.2, r * 1.16);
-    ctx.lineTo(0, r * 0.98);
+    ctx.moveTo(-3.2, ry * 1.1);
+    ctx.lineTo(3.2, ry * 1.1);
+    ctx.lineTo(0, ry * 0.93);
     ctx.closePath();
     ctx.fill();
 
     // body + soft shade crescent for volume without outlines
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.ellipse(0, 0, r * 0.97, r * 1.06, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
+    // Shade and highlight follow a fixed top-left light, so they are drawn un-rotated inside the body clip.
     ctx.save();
     ctx.clip();
+    ctx.rotate(-(angle + wobble));
     ctx.fillStyle = dark;
     ctx.globalAlpha = 0.28;
     ctx.beginPath();
     ctx.ellipse(r * 0.55, r * 0.6, r * 0.95, r * 1.0, 0, 0, Math.PI * 2);
     ctx.ellipse(-r * 0.2, -r * 0.25, r * 1.05, r * 1.12, 0, 0, Math.PI * 2, true);
     ctx.fill('evenodd');
-    ctx.restore();
-
-    // highlight
+    ctx.globalAlpha = 1;
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.beginPath();
     ctx.ellipse(-r * 0.38, -r * 0.45, r * 0.17, r * 0.3, -0.55, 0, Math.PI * 2);
@@ -219,6 +228,7 @@ export class Renderer {
       ctx.fillStyle = `rgba(255,255,255,${0.9 * blend})`;
       star(ctx, r * 0.3, -r * 0.08, 4.2 * k);
     }
+    ctx.restore();
     ctx.restore();
 
     if (b.targeted) {

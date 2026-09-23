@@ -14,6 +14,8 @@ export class PhysicsWorld {
   readonly substepMs = 1000 / SIM.stepHz / SIM.substeps;
   private solids: Matter.Body[] = [];
   onCollisionStart: ((pairs: Matter.Pair[]) => void) | null = null;
+  /** Called every substep with all touching pairs (new and ongoing). */
+  onContacts: ((pairs: Matter.Pair[]) => void) | null = null;
 
   constructor() {
     this.engine = Engine.create({
@@ -22,7 +24,11 @@ export class PhysicsWorld {
       velocityIterations: SIM.velocityIterations,
       enableSleeping: false,
     });
-    Events.on(this.engine, 'collisionStart', (e) => this.onCollisionStart?.(e.pairs));
+    Events.on(this.engine, 'collisionStart', (e) => {
+      this.onCollisionStart?.(e.pairs);
+      this.onContacts?.(e.pairs);
+    });
+    Events.on(this.engine, 'collisionActive', (e) => this.onContacts?.(e.pairs));
   }
 
   buildStage(stage: StageConfig): void {
@@ -75,8 +81,9 @@ export class PhysicsWorld {
       },
       BALLOON.colliderSides,
     );
-    // No spin: balloons slide along ceilings instead of rolling, which keeps pusher behaviour predictable.
-    Body.setInertia(body, Infinity);
+    // Slightly tall oval: contacts off the main axes create torque, so balloons turn, tumble and can end up upside down.
+    Body.scale(body, BALLOON.shapeX, BALLOON.shapeY);
+    Body.setInertia(body, body.inertia * BALLOON.inertiaScale);
     body.deltaTime = this.substepMs;
     Composite.add(this.engine.world, body);
     return body;
@@ -142,4 +149,75 @@ export function moveBody(body: Matter.Body, x: number, y: number, updateVelocity
 export function applyAccel(body: Matter.Body, ax: number, ay: number): void {
   body.force.x += body.mass * ax * 1e-6;
   body.force.y += body.mass * ay * 1e-6;
+}
+
+/**
+ * Same as applyAccel, but the force acts at a point given in body-local coordinates (x right, y down),
+ * so it also produces torque.
+ */
+export function applyAccelAt(body: Matter.Body, localX: number, localY: number, ax: number, ay: number): void {
+  const c = Math.cos(body.angle);
+  const s = Math.sin(body.angle);
+  const ox = localX * c - localY * s;
+  const oy = localX * s + localY * c;
+  const fx = body.mass * ax * 1e-6;
+  const fy = body.mass * ay * 1e-6;
+  body.force.x += fx;
+  body.force.y += fy;
+  body.torque += ox * fy - oy * fx;
+}
+
+/** Clamps angular speed (rad/s) using the same position-based bookkeeping Matter integrates with. */
+export function clampSpin(body: Matter.Body, maxRadPerSec: number): void {
+  const max = maxRadPerSec * ((body.deltaTime || 1000 / 60) / 1000);
+  const w = body.angle - body.anglePrev;
+  if (w > max) body.anglePrev = body.angle - max;
+  else if (w < -max) body.anglePrev = body.angle + max;
+}
+
+/**
+ * Spin-only rubber grip. Nudges the angular velocity of each dynamic body so the contact points stop slipping
+ * along the tangent, but leaves linear velocity alone — balloons roll and tumble without piles welding together.
+ */
+export function applyRollingGrip(pair: Matter.Pair, grip: number, dynamicA: boolean, dynamicB: boolean): void {
+  const col = pair.collision;
+  const n = col.supportCount ?? 0;
+  if (!n) return;
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < n; i++) {
+    cx += col.supports[i].x;
+    cy += col.supports[i].y;
+  }
+  cx /= n;
+  cy /= n;
+  const A = col.parentA;
+  const B = col.parentB;
+  const t = col.tangent;
+  const pointVel = (b: Matter.Body) => {
+    const w = b.angle - b.anglePrev;
+    return {
+      x: b.position.x - b.positionPrev.x - w * (cy - b.position.y),
+      y: b.position.y - b.positionPrev.y + w * (cx - b.position.x),
+    };
+  };
+  const va = pointVel(A);
+  const vb = pointVel(B);
+  const slip = (va.x - vb.x) * t.x + (va.y - vb.y) * t.y;
+  const share = dynamicA && dynamicB ? 0.5 : 1;
+  const spin = (b: Matter.Body, dv: number) => {
+    const ox = cx - b.position.x;
+    const oy = cy - b.position.y;
+    const cross = ox * t.y - oy * t.x;
+    if (Math.abs(cross) < 1e-3) return;
+    b.anglePrev -= (grip * dv) / cross;
+  };
+  if (dynamicA) spin(A, -slip * share);
+  if (dynamicB) spin(B, slip * share);
+}
+
+/** Puts a body upright with no spin (used when a lost balloon is returned to the pipe). */
+export function resetAngle(body: Matter.Body): void {
+  Body.setAngle(body, 0);
+  body.anglePrev = body.angle;
 }

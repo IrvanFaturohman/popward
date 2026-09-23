@@ -83,9 +83,9 @@ const STAGE_TERRACES: StageConfig = {
   walls: [
     // upper terrace (spans right, opening on the left). Past the ram's reach the underside
     // rises gently toward the opening so nothing parks there forever.
-    [v(126, 150), v(R, 150), v(R, 196), v(190, 196), v(138, 189), v(126, 178)],
+    [v(126, 150), v(R, 150), v(R, 196), v(210, 196), v(140, 189), v(126, 178)],
     // lower terrace (spans left, shaft on the right), same idea mirrored
-    [v(B, 352), v(244, 352), v(256, 364), v(256, 380), v(246, 390), v(186, 398), v(B, 398)],
+    [v(B, 352), v(244, 352), v(256, 364), v(256, 382), v(244, 390), v(150, 398), v(B, 398)],
     // ceiling ramps that funnel balloons into the spikes
     [v(B, B), v(104, B), v(B, 78)],
     [v(206, B), v(R, B), v(R, 104)],
@@ -119,9 +119,9 @@ const STAGE_CROSSOVER: StageConfig = {
   spikes: { x0: 168, x1: 262, depth: 16 },
   walls: [
     // upper terrace (spans left, opening on the right)
-    [v(B, 150), v(222, 150), v(234, 162), v(234, 180), v(224, 189), v(168, 196), v(B, 196)],
+    [v(B, 150), v(222, 150), v(234, 162), v(234, 180), v(224, 189), v(150, 196), v(B, 196)],
     // lower terrace (spans right) with a long slanted lip that leans balloons toward the left shaft
-    [v(110, 334), v(R, 334), v(R, 382), v(196, 382), v(122, 370), v(110, 358)],
+    [v(110, 334), v(R, 334), v(R, 382), v(210, 382), v(122, 370), v(110, 358)],
     [v(B, B), v(164, B), v(B, 112)],
     [v(266, B), v(R, B), v(R, 66)],
     GAUGE_BLOCK,
@@ -155,11 +155,11 @@ const STAGE_SWITCHBACK: StageConfig = {
   spikes: { x0: 238, x1: 334, depth: 16 },
   walls: [
     // top terrace (spans left, opening on the right)
-    [v(B, 118), v(232, 118), v(244, 130), v(244, 142), v(234, 150), v(170, 158), v(B, 158)],
+    [v(B, 118), v(232, 118), v(244, 130), v(244, 142), v(234, 150), v(150, 158), v(B, 158)],
     // passive ramp: its underside rises to the left, so buoyancy alone walks balloons across
     [v(126, 250), v(R, 250), v(R, 320), v(138, 264), v(126, 257)],
     // lower terrace (spans left, shaft on the right)
-    [v(B, 380), v(236, 380), v(248, 392), v(248, 404), v(238, 412), v(178, 420), v(B, 420)],
+    [v(B, 380), v(236, 380), v(248, 392), v(248, 404), v(238, 412), v(150, 420), v(B, 420)],
     // big sloped ceiling that slides balloons right into the spikes
     [v(B, B), v(230, B), v(150, 70), v(B, 100)],
     GAUGE_BLOCK,
